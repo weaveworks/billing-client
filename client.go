@@ -15,9 +15,10 @@ const (
 	maxBufferedEvents = 1024
 	retryDelay        = 10 * time.Millisecond
 
-	// TODO: Figure out what this should be. Should it be run in each individual
-	// pod? or as a daemonset?
-	FluentHostPort = "input.billing:24224"
+	// FluentHostPort just points to localhost on the expected billing port. The
+	// billing fluentd instance *must* be run in each pod wishing to report
+	// billing events.
+	FluentHostPort = "localhost:24225"
 )
 
 type Client struct {
