@@ -1,12 +1,14 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/fluent/fluent-logger-golang/fluent"
 )
 
@@ -24,27 +26,30 @@ const (
 type Client struct {
 	stop   chan struct{}
 	wg     sync.WaitGroup
-	events chan Event
+	events chan []byte
 	logger *fluent.Fluent
 }
 
-type AmountType int
+// AmountType is a msgpack encodable enum of our potential billing metrics.
+type AmountType string
 
 const (
-	ContainerSeconds AmountType = 0
+	ContainerSeconds AmountType = "container-seconds"
 )
 
+type Amounts map[AmountType]int64
+
 type Event struct {
-	UniqueKey          string               `msg:"unique_key"`
-	InternalInstanceID string               `msg:"internal_instance_id"`
-	Timestamp          time.Time            `msg:"timestamp"`
-	Amounts            map[AmountType]int64 `msg:"amounts"`
-	Metadata           map[string]string    `msg:"metadata"`
+	UniqueKey          string            `json:"unique_key"`
+	InternalInstanceID string            `json:"internal_instance_id"`
+	Timestamp          time.Time         `json:"timestamp"`
+	Amounts            Amounts           `json:"amounts"`
+	Metadata           map[string]string `json:"metadata"`
 }
 
 // New creates a new billing client.
 func New() (*Client, error) {
-	host, port, err := net.SplitHostPort(fluentHostPort)
+	host, port, err := net.SplitHostPort(FluentHostPort)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +69,7 @@ func New() (*Client, error) {
 
 	c := &Client{
 		stop:   make(chan struct{}),
-		events: make(chan Event, maxBufferedEvents),
+		events: make(chan []byte, maxBufferedEvents),
 		logger: logger,
 	}
 	c.wg.Add(1)
@@ -89,9 +94,24 @@ func New() (*Client, error) {
 // `amounts` is a map with all the various amounts we wish to charge the user for.
 //
 // `metadata` is a general dumping ground for other metadata you may wish to include for auditability. In general, be careful about the size of data put here. Prefer including a pointer over whole data. For example, include a report id or s3 address instead of the information in the report.
-func (c *Client) AddAmounts(uniqueKey, internalInstanceID, timestamp time.Time, amounts map[AmountType]int64, metadata map[string]string) error {
+func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time.Time, amounts Amounts, metadata map[string]string) error {
 	if uniqueKey == "" {
 		return fmt.Errorf("billing units uniqueKey cannot be blank")
+	}
+
+	// TODO: Marshal this to something more compact than json. fluent likes
+	// msgpack, but that doesn't support maps with non-string keys, and
+	// implementing a codec is a nightmare. Protobuf would be nice and compact
+	// for storing, but then we have to do the compiled spec dance.
+	e, err := json.Marshal(Event{
+		UniqueKey:          uniqueKey,
+		InternalInstanceID: internalInstanceID,
+		Timestamp:          timestamp,
+		Amounts:            amounts,
+		Metadata:           metadata,
+	})
+	if err != nil {
+		return err
 	}
 
 	select {
@@ -102,13 +122,7 @@ func (c *Client) AddAmounts(uniqueKey, internalInstanceID, timestamp time.Time, 
 	}
 
 	select {
-	case c.events <- Event{
-		UniqueKey:          uniqueKey,
-		InternalInstanceID: internalInstanceID,
-		Timestamp:          timestamp,
-		Amounts:            amounts,
-		Metadata:           metadata,
-	}: // Put event in the channel unless it is full
+	case c.events <- e: // Put event in the channel unless it is full
 		return nil
 	default:
 		// full
@@ -118,7 +132,7 @@ func (c *Client) AddAmounts(uniqueKey, internalInstanceID, timestamp time.Time, 
 }
 
 func (c *Client) loop() {
-	defer wg.Done()
+	defer c.wg.Done()
 	for done := false; !done; {
 		select {
 		case event := <-c.events:
@@ -139,17 +153,17 @@ func (c *Client) loop() {
 	}
 }
 
-func (c *Client) post(e Event) error {
+func (c *Client) post(e []byte) error {
 	for {
 		select {
 		case <-c.stop:
-			return fmt.Errorf("Billing: failed to log event: %v", e)
+			return fmt.Errorf("Billing: failed to log event: %v", string(e))
 		default:
-			err := c.logger.Post("billing", e)
+			err := c.logger.Post("billing", map[string]interface{}{"data": e})
 			if err == nil {
 				return nil
 			}
-			log.Errorf("Billing: failed to log event: %v: %v, retrying in %v", e, err, retryDelay)
+			log.Errorf("Billing: failed to log event: %v: %v, retrying in %v", string(e), err, retryDelay)
 			time.Sleep(retryDelay)
 		}
 	}
