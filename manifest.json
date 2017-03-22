@@ -1,0 +1,13 @@
+{
+    "dependencies": {
+        "github.com/Sirupsen/logrus": {
+            "branch": "master"
+        },
+        "github.com/prometheus/client_golang": {
+            "branch": "master"
+        },
+        "golang.org/x/net": {
+            "branch": "master"
+        }
+    }
+}

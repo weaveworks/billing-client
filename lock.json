@@ -1,0 +1,127 @@
+{
+    "memo": "b5862bbc883a72ed4a87ba04a96707ef6c415edf1c7b99eac1d3fbb1fe5fc291",
+    "projects": [
+        {
+            "name": "github.com/Sirupsen/logrus",
+            "branch": "master",
+            "revision": "3ec0642a7fb6488f65b06f9040adc67e3990296a",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/beorn7/perks",
+            "branch": "master",
+            "revision": "b965b613227fddccbfffe13eae360ed3fa822f8d",
+            "packages": [
+                "quantile"
+            ]
+        },
+        {
+            "name": "github.com/fluent/fluent-logger-golang",
+            "version": "v1.2.1",
+            "revision": "28bdb662295c1b7aca09c1a4edbf9430010775a9",
+            "packages": [
+                "fluent"
+            ]
+        },
+        {
+            "name": "github.com/golang/protobuf",
+            "branch": "master",
+            "revision": "c9c7427a2a70d2eb3bafa0ab2dc163e45f143317",
+            "packages": [
+                "proto"
+            ]
+        },
+        {
+            "name": "github.com/matttproud/golang_protobuf_extensions",
+            "branch": "master",
+            "revision": "fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a",
+            "packages": [
+                "pbutil"
+            ]
+        },
+        {
+            "name": "github.com/opentracing/opentracing-go",
+            "version": "v1.0.1",
+            "revision": "6edb48674bd9467b8e91fda004f2bd7202d60ce4",
+            "packages": [
+                ".",
+                "ext"
+            ]
+        },
+        {
+            "name": "github.com/philhofer/fwd",
+            "branch": "master",
+            "revision": "98c11a7a6ec829d672b03833c3d69a7fae1ca972",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/prometheus/client_golang",
+            "branch": "master",
+            "revision": "7664178cb2d46b7b36a28d7b0af688ab436a3fa0",
+            "packages": [
+                "prometheus"
+            ]
+        },
+        {
+            "name": "github.com/prometheus/client_model",
+            "branch": "master",
+            "revision": "fa8ad6fec33561be4280a8f0514318c79d7f6cb6",
+            "packages": [
+                "go"
+            ]
+        },
+        {
+            "name": "github.com/prometheus/common",
+            "branch": "master",
+            "revision": "0d5de9d6d8629cb8bee6d4674da4127cd8b615a3",
+            "packages": [
+                "expfmt",
+                "model"
+            ]
+        },
+        {
+            "name": "github.com/prometheus/procfs",
+            "branch": "master",
+            "revision": "c91d8eefde16bd047416409eb56353ea84a186e4",
+            "packages": [
+                "."
+            ]
+        },
+        {
+            "name": "github.com/tinylib/msgp",
+            "version": "v1.0",
+            "revision": "38a6f61a768dc24552dad94611923841b53acc4f",
+            "packages": [
+                "msgp"
+            ]
+        },
+        {
+            "name": "github.com/weaveworks/common",
+            "branch": "master",
+            "revision": "f94043b3da140c7a735b1f2f286d72d19014b200",
+            "packages": [
+                "instrument"
+            ]
+        },
+        {
+            "name": "golang.org/x/net",
+            "branch": "master",
+            "revision": "4a1c855a052c2bad0e019ccfe8193a33d77adf5e",
+            "packages": [
+                "context"
+            ]
+        },
+        {
+            "name": "golang.org/x/sys",
+            "branch": "master",
+            "revision": "b699b7032584f0953262cb2788a0ca19bb494703",
+            "packages": [
+                "unix"
+            ]
+        }
+    ]
+}
