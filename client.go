@@ -1,7 +1,6 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -10,46 +9,53 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/fluent/fluent-logger-golang/fluent"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/net/context"
+
+	"github.com/weaveworks/common/instrument"
 )
 
-const (
-	// TODO: Figure out good values for these
-	maxBufferedEvents = 1024
-	retryDelay        = 10 * time.Millisecond
-
-	// FluentHostPort just points to localhost on the expected billing port. The
-	// billing fluentd instance *must* be run in each pod wishing to report
-	// billing events.
-	FluentHostPort = "localhost:24225"
+var (
+	// RequestDuration is the duration of billing client requests
+	RequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "billing_client",
+		Name:      "request_duration_seconds",
+		Help:      "Time in seconds spent emitting billing info.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"method", "status_code"})
+	// EventsCounter is the count of billing events
+	EventsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "billing_client",
+		Name:      "events",
+		Help:      "Number of billing events",
+	}, []string{"status"})
+	// AmountsCounter is the total of the billing amounts
+	AmountsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "billing_client",
+		Name:      "amounts",
+		Help:      "Number and type of billing amounts",
+	}, []string{"status", "amount_type"})
 )
 
+// MustRegisterMetrics is a convenience function for registering all the metrics from this package
+func MustRegisterMetrics() {
+	prometheus.MustRegister(RequestDuration)
+	prometheus.MustRegister(EventsCounter)
+	prometheus.MustRegister(AmountsCounter)
+}
+
+// Client is a billing client for sending usage information to the billing system.
 type Client struct {
 	stop   chan struct{}
 	wg     sync.WaitGroup
-	events chan []byte
+	events chan Event
 	logger *fluent.Fluent
-}
-
-// AmountType is a msgpack encodable enum of our potential billing metrics.
-type AmountType string
-
-const (
-	ContainerSeconds AmountType = "container-seconds"
-)
-
-type Amounts map[AmountType]int64
-
-type Event struct {
-	UniqueKey          string            `json:"unique_key"`
-	InternalInstanceID string            `json:"internal_instance_id"`
-	Timestamp          time.Time         `json:"timestamp"`
-	Amounts            Amounts           `json:"amounts"`
-	Metadata           map[string]string `json:"metadata"`
+	Config
 }
 
 // New creates a new billing client.
-func New() (*Client, error) {
-	host, port, err := net.SplitHostPort(FluentHostPort)
+func New(cfg Config) (*Client, error) {
+	host, port, err := net.SplitHostPort(cfg.IngesterHostPort)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +64,11 @@ func New() (*Client, error) {
 		return nil, err
 	}
 	logger, err := fluent.New(fluent.Config{
-		FluentPort:   intPort,
-		FluentHost:   host,
-		AsyncConnect: true,
-		MaxRetry:     -1,
+		FluentPort:    intPort,
+		FluentHost:    host,
+		AsyncConnect:  true,
+		MaxRetry:      -1,
+		MarshalAsJSON: true,
 	})
 	if err != nil {
 		return nil, err
@@ -69,8 +76,9 @@ func New() (*Client, error) {
 
 	c := &Client{
 		stop:   make(chan struct{}),
-		events: make(chan []byte, maxBufferedEvents),
+		events: make(chan Event, cfg.MaxBufferedEvents),
 		logger: logger,
+		Config: cfg,
 	}
 	c.wg.Add(1)
 	go c.loop()
@@ -89,46 +97,41 @@ func New() (*Client, error) {
 //
 // `internalInstanceID`, is *not* the external instance ID (e.g. "fluffy-bunny-47"), it is the numeric internal instance ID (e.g. "1234").
 //
-// `timestamp` is used to determine which time bucket the usage occured in, it is included so that the result is independent of how long processing takes.
+// `timestamp` is used to determine which time bucket the usage occurred in, it is included so that the result is independent of how long processing takes.
 //
 // `amounts` is a map with all the various amounts we wish to charge the user for.
 //
 // `metadata` is a general dumping ground for other metadata you may wish to include for auditability. In general, be careful about the size of data put here. Prefer including a pointer over whole data. For example, include a report id or s3 address instead of the information in the report.
 func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time.Time, amounts Amounts, metadata map[string]string) error {
-	if uniqueKey == "" {
-		return fmt.Errorf("billing units uniqueKey cannot be blank")
-	}
+	return instrument.TimeRequestHistogram(context.Background(), "Billing.AddAmounts", RequestDuration, func(_ context.Context) error {
+		if uniqueKey == "" {
+			return fmt.Errorf("billing units uniqueKey cannot be blank")
+		}
 
-	// TODO: Marshal this to something more compact than json. fluent likes
-	// msgpack, but that doesn't support maps with non-string keys, and
-	// implementing a codec is a nightmare. Protobuf would be nice and compact
-	// for storing, but then we have to do the compiled spec dance.
-	e, err := json.Marshal(Event{
-		UniqueKey:          uniqueKey,
-		InternalInstanceID: internalInstanceID,
-		Timestamp:          timestamp,
-		Amounts:            amounts,
-		Metadata:           metadata,
+		e := Event{
+			UniqueKey:          uniqueKey,
+			InternalInstanceID: internalInstanceID,
+			OccurredAt:         timestamp,
+			Amounts:            amounts,
+			Metadata:           metadata,
+		}
+
+		select {
+		case <-c.stop:
+			trackEvent("stopping", e)
+			return fmt.Errorf("stopping, discarding event: %v", e)
+		default:
+		}
+
+		select {
+		case c.events <- e: // Put event in the channel unless it is full
+			return nil
+		default:
+			// full
+		}
+		trackEvent("buffer_full", e)
+		return fmt.Errorf("reached billing event buffer limit (%d), discarding event: %v", c.MaxBufferedEvents, e)
 	})
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-c.stop:
-		// TODO: Should this be a panic? We just threw away billing data!
-		return fmt.Errorf("Stopping, discarding event: %v", e)
-	default:
-	}
-
-	select {
-	case c.events <- e: // Put event in the channel unless it is full
-		return nil
-	default:
-		// full
-	}
-	// TODO: Big angry log message here, cause we're throwing away billing data
-	return fmt.Errorf("Reached billing event buffer limit (%d), discarding event: %v", maxBufferedEvents, e)
 }
 
 func (c *Client) loop() {
@@ -153,22 +156,40 @@ func (c *Client) loop() {
 	}
 }
 
-func (c *Client) post(e []byte) error {
+func (c *Client) post(e Event) error {
 	for {
+		var err error
+		for _, r := range e.toRecords() {
+			if err = c.logger.Post("billing", r); err != nil {
+				break
+			}
+		}
+		if err == nil {
+			trackEvent("success", e)
+			return nil
+		}
 		select {
 		case <-c.stop:
-			return fmt.Errorf("Billing: failed to log event: %v", string(e))
+			// We're quitting, no retries.
+			trackEvent("stopping", e)
+			log.Errorf("billing: failed to log event: %v: %v, stopping", e, err)
+			return err
 		default:
-			err := c.logger.Post("billing", map[string]interface{}{"data": e})
-			if err == nil {
-				return nil
-			}
-			log.Errorf("Billing: failed to log event: %v: %v, retrying in %v", string(e), err, retryDelay)
-			time.Sleep(retryDelay)
+			trackEvent("retrying", e)
+			log.Errorf("billing: failed to log event: %v: %v, retrying in %v", e, err, c.RetryDelay)
+			time.Sleep(c.RetryDelay)
 		}
 	}
 }
 
+func trackEvent(status string, e Event) {
+	EventsCounter.WithLabelValues(status).Inc()
+	for t, v := range e.Amounts {
+		AmountsCounter.WithLabelValues(status, t).Add(float64(v))
+	}
+}
+
+// Close shuts down the client and attempts to flush remaining events.
 func (c *Client) Close() error {
 	close(c.stop)
 	c.wg.Wait()
