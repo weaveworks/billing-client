@@ -1,4 +1,4 @@
-package client
+package billing
 
 import (
 	"time"

@@ -194,7 +194,7 @@ func (c *Client) post(e Event) error {
 func trackEvent(status string, e Event) {
 	EventsCounter.WithLabelValues(status).Inc()
 	for t, v := range e.Amounts {
-		AmountsCounter.WithLabelValues(status, t).Add(float64(v))
+		AmountsCounter.WithLabelValues(status, string(t)).Add(float64(v))
 	}
 }
 
