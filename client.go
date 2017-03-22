@@ -27,8 +27,8 @@ var (
 	EventsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "billing_client",
 		Name:      "events",
-		Help:      "Number of billing events",
-	}, []string{"status"})
+		Help:      "Number and type of billing events",
+	}, []string{"status", "amount_type"})
 	// AmountsCounter is the total of the billing amounts
 	AmountsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "billing_client",
@@ -192,8 +192,8 @@ func (c *Client) post(e Event) error {
 }
 
 func trackEvent(status string, e Event) {
-	EventsCounter.WithLabelValues(status).Inc()
 	for t, v := range e.Amounts {
+		EventsCounter.WithLabelValues(status, string(t)).Inc()
 		AmountsCounter.WithLabelValues(status, string(t)).Add(float64(v))
 	}
 }
