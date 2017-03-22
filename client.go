@@ -1,4 +1,4 @@
-package client
+package billing
 
 import (
 	"fmt"
@@ -54,7 +54,7 @@ type Client struct {
 }
 
 // New creates a new billing client.
-func New(cfg Config) (*Client, error) {
+func NewClient(cfg Config) (*Client, error) {
 	host, port, err := net.SplitHostPort(cfg.IngesterHostPort)
 	if err != nil {
 		return nil, err
@@ -93,15 +93,24 @@ func New(cfg Config) (*Client, error) {
 // succeed, and the results will be deduped.
 //
 // `uniqueKey` must be set, and not blank. If in doubt, generate a uuid and set
-// that as the uniqueKey.
+// that as the uniqueKey. Consider that hashing the raw input data may not be
+// good enough since identical data may be sent from the client multiple times.
 //
-// `internalInstanceID`, is *not* the external instance ID (e.g. "fluffy-bunny-47"), it is the numeric internal instance ID (e.g. "1234").
+// `internalInstanceID`, is *not* the external instance ID (e.g.
+// "fluffy-bunny-47"), it is the numeric internal instance ID (e.g. "1234").
 //
-// `timestamp` is used to determine which time bucket the usage occurred in, it is included so that the result is independent of how long processing takes.
+// `timestamp` is used to determine which time bucket the usage occurred in, it
+// is included so that the result is independent of how long processing takes.
+// Note, in the event of buffering this timestamp may *not* agree with when the
+// charge will be billed to the customer.
 //
-// `amounts` is a map with all the various amounts we wish to charge the user for.
+// `amounts` is a map with all the various amounts we wish to charge the user
+// for.
 //
-// `metadata` is a general dumping ground for other metadata you may wish to include for auditability. In general, be careful about the size of data put here. Prefer including a pointer over whole data. For example, include a report id or s3 address instead of the information in the report.
+// `metadata` is a general dumping ground for other metadata you may wish to
+// include for auditability. In general, be careful about the size of data put
+// here. Prefer including a lookup address over whole data. For example,
+// include a report id or s3 address instead of the information in the report.
 func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time.Time, amounts Amounts, metadata map[string]string) error {
 	return instrument.TimeRequestHistogram(context.Background(), "Billing.AddAmounts", RequestDuration, func(_ context.Context) error {
 		if uniqueKey == "" {

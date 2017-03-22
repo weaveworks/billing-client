@@ -19,9 +19,9 @@ func (e Event) toRecords() []map[string]interface{} {
 	var records []map[string]interface{}
 	for t, v := range e.Amounts {
 		records = append(records, map[string]interface{}{
-			"unique_key":           e.UniqueKey + ":" + t,
+			"unique_key":           e.UniqueKey + ":" + string(t),
 			"internal_instance_id": e.InternalInstanceID,
-			"amount_type":          t,
+			"amount_type":          string(t),
 			"amount_value":         v,
 			"occurred_at":          e.OccurredAt,
 			"metadata":             e.Metadata,
@@ -30,10 +30,13 @@ func (e Event) toRecords() []map[string]interface{} {
 	return records
 }
 
+// AmountType is a type-cast of the enum for the diferent amount types
+type AmountType string
+
 const (
 	// ContainerSeconds is one of the billable metrics
-	ContainerSeconds string = "container-seconds"
+	ContainerSeconds AmountType = "container-seconds"
 )
 
 // Amounts is a map of amount billable metrics to their values
-type Amounts map[string]int64
+type Amounts map[AmountType]int64
