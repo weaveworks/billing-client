@@ -26,13 +26,13 @@ var (
 	// EventsCounter is the count of billing events
 	EventsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "billing_client",
-		Name:      "events",
+		Name:      "events_total",
 		Help:      "Number and type of billing events",
 	}, []string{"status", "amount_type"})
 	// AmountsCounter is the total of the billing amounts
 	AmountsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "billing_client",
-		Name:      "amounts",
+		Name:      "amounts_total",
 		Help:      "Number and type of billing amounts",
 	}, []string{"status", "amount_type"})
 )
