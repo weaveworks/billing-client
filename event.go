@@ -36,6 +36,7 @@ type AmountType string
 const (
 	// ContainerSeconds is one of the billable metrics
 	ContainerSeconds AmountType = "container-seconds"
+	Samples          AmountType = "samples"
 )
 
 // Amounts is a map of amount billable metrics to their values
