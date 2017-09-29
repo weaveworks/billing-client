@@ -16,13 +16,14 @@ import (
 )
 
 var (
-	// RequestDuration is the duration of billing client requests
-	RequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	// requestCollector is the duration of billing client requests
+	requestCollector = instrument.NewHistogramCollector(prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "billing_client",
 		Name:      "request_duration_seconds",
 		Help:      "Time in seconds spent emitting billing info.",
 		Buckets:   prometheus.DefBuckets,
-	}, []string{"method", "status_code"})
+	}, []string{"method", "status_code"}))
+
 	// EventsCounter is the count of billing events
 	EventsCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "billing_client",
@@ -39,7 +40,7 @@ var (
 
 // MustRegisterMetrics is a convenience function for registering all the metrics from this package
 func MustRegisterMetrics() {
-	prometheus.MustRegister(RequestDuration)
+	requestCollector.Register()
 	prometheus.MustRegister(EventsCounter)
 	prometheus.MustRegister(AmountsCounter)
 }
@@ -112,7 +113,7 @@ func NewClient(cfg Config) (*Client, error) {
 // here. Prefer including a lookup address over whole data. For example,
 // include a report id or s3 address instead of the information in the report.
 func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time.Time, amounts Amounts, metadata map[string]string) error {
-	return instrument.TimeRequestHistogram(context.Background(), "Billing.AddAmounts", RequestDuration, func(_ context.Context) error {
+	return instrument.CollectedRequest(context.Background(), "Billing.AddAmounts", requestCollector, nil, func(_ context.Context) error {
 		if uniqueKey == "" {
 			return fmt.Errorf("billing units uniqueKey cannot be blank")
 		}
