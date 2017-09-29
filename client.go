@@ -115,7 +115,7 @@ func NewClient(cfg Config) (*Client, error) {
 func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time.Time, amounts Amounts, metadata map[string]string) error {
 	return instrument.CollectedRequest(context.Background(), "Billing.AddAmounts", requestCollector, nil, func(_ context.Context) error {
 		if uniqueKey == "" {
-			return fmt.Errorf("billing units uniqueKey cannot be blank")
+			return fmt.Errorf("billing: units uniqueKey cannot be blank")
 		}
 
 		e := Event{
@@ -129,7 +129,7 @@ func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time
 		select {
 		case <-c.stop:
 			trackEvent("stopping", e)
-			return fmt.Errorf("stopping, discarding event: %v", e)
+			return fmt.Errorf("billing: stopping, discarding event: %v", e)
 		default:
 		}
 
@@ -140,7 +140,7 @@ func (c *Client) AddAmounts(uniqueKey, internalInstanceID string, timestamp time
 			// full
 		}
 		trackEvent("buffer_full", e)
-		return fmt.Errorf("reached billing event buffer limit (%d), discarding event: %v", c.MaxBufferedEvents, e)
+		return fmt.Errorf("billing: reached billing event buffer limit (%d), discarding event: %v", c.MaxBufferedEvents, e)
 	})
 }
 
