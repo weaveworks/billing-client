@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/context"
 
 	"github.com/weaveworks/common/instrument"
 )
