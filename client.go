@@ -53,7 +53,7 @@ type Client struct {
 	Config
 }
 
-// New creates a new billing client.
+// NewClient creates a new billing client.
 func NewClient(cfg Config) (*Client, error) {
 	host, port, err := net.SplitHostPort(cfg.IngesterHostPort)
 	if err != nil {
