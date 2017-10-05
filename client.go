@@ -1,16 +1,16 @@
 package billing
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/context"
 
 	"github.com/weaveworks/common/instrument"
 )
@@ -53,7 +53,7 @@ type Client struct {
 	Config
 }
 
-// New creates a new billing client.
+// NewClient creates a new billing client.
 func NewClient(cfg Config) (*Client, error) {
 	host, port, err := net.SplitHostPort(cfg.IngesterHostPort)
 	if err != nil {
