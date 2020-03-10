@@ -6,10 +6,6 @@ Open sourced so it can be imported into our open-source projects.
 
 ## Usage
 
-`dep ensure github.com/weaveworks/billing-client`
-
-then
-
 ```Go
 import billing "github.com/weaveworks/billing-client"
 
